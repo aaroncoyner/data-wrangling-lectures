@@ -1,0 +1,13 @@
+name: hip_data
+title: hip_data
+username:
+account: tladeras
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2198384
+bundleId: 3078788
+url: https://tladeras.shinyapps.io/hip_data/
+when: 1588111643.75903
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: modeling.Rmd|data/data_dict.csv|docs

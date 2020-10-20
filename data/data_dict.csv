@@ -1,0 +1,9 @@
+﻿variable name,description
+age,Age of patient in years
+patientid,Numeric ID 
+length_of_stay,length of stay in the hospital for previous admission in days
+readmit30,1/0 value of whether the patient was readmitted to the hospital within 30 days
+diabetes_complications,Whether the patient has complications related to diabetes. Calculated by using the Charleson Comorbidity Index on ICD9 codes
+myocardial_complications,Whether the patient has complications related to myocardial infarctions. Calculated by using the Charleson Comorbidity Index on ICD9 codes
+outcome,Where the patient ended up after admission
+admit_source,Department where the patient was admitted

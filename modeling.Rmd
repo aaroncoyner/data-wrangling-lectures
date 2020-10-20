@@ -1,0 +1,36 @@
+---
+title: "R Notebook"
+output: html_document
+---
+
+```{r}
+data <- readRDS("data/dataset.rds")
+
+data <- data %>% tidyr::drop_na()
+
+
+basic_model <- glm(#put your formula below
+                   formula = readmit30 ~ age + length_of_stay, 
+                   # binomial
+                   family = "binomial", 
+                   #we put our data into the data argument
+                   data =    data
+                   )
+library(broom)
+
+tidy(basic_model)
+```
+
+
+```{r}
+basic_model <- glm(#put your formula below
+                   formula = readmit30 ~ length_of_stay + myocardial_complications, 
+                   # binomial
+                   family = "binomial", 
+                   #we put our data into the data argument
+                   data =    data
+                   )
+library(broom)
+
+tidy(basic_model)
+```
