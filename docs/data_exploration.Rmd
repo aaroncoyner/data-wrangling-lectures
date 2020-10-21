@@ -77,6 +77,14 @@ mono_light(
 
 ---
 
+# Beware the DataSaurus Dozen
+ 
+<img src ="img/dsdn.gif" height = 400>
+
+12 datasets that have the exact same mean and standard deviation in both dimensions!
+
+---
+
 # Let's look first
 
 - Visualization is a gateway
