@@ -51,17 +51,18 @@ This is an extremely simplified version of predictive modeling, but hopefully it
 
 The first thing to do is to load the data into your workspace. Click the `play` button on the below code chunk. 
 
-We first load in some packages: `broom`, `tidyr`, `dplyr`, and `visdat`, `janitor`. Then we're going to load our data using the `read_rds` function. We use the `<-` to *assign* our data into the `hosp_readmit_data` object. 
+We first load in some packages: `here`,`broom`, `tidyr`, `dplyr`, `janitor`, `visdat`, and `caret`. Then we're going to load our data using the `read_rds` function. We use the `<-` to *assign* our data into the `hosp_readmit_data` object. 
 
 ```{r setup}
+library(here)
 library(broom)
 library(tidyr)
 library(dplyr)
+library(janitor)
 library(visdat)
 library(caret)
-library(janitor)
 
-hosp_readmit_data <- readRDS("data/dataset.rds")
+hosp_readmit_data <- readRDS(here('data', 'dataset.rds'))
 ```
 
 
@@ -180,7 +181,7 @@ basic_model <- glm(#put your formula below
                    # binomial
                    family = "binomial", 
                    #we put our data into the data argument
-                   data =    shhs_train_data
+                   data =    train_data
                    )
 ```
 
@@ -247,7 +248,7 @@ The coefficients of our model specify the weights, or importance of our variable
 What if we plug in our test set into the model? How are the predicted probabilities distributed?
 
 ```{r}
-predictions <- augment(basic_model, newdata = shhs_test_data, type.predict = "response")
+predictions <- augment(basic_model, newdata = test_data, type.predict = "response")
 predictions
 ```
 
