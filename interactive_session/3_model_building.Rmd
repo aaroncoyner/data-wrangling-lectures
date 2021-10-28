@@ -1,0 +1,464 @@
+---
+title: "Building Your Predictive Model"
+author: "You!"
+output: 
+  html_document:
+    toc: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+In this R notebook, we're going to learn the basics of predictive modeling. 
+
+## Before we get started
+
+Save this under a different file name using File >> Save as. 
+
+
+
+## Learning Objectives of this Notebook
+
+1. **Understand** that model building involves selecting explanatory variables
+2. **Understand** the impact of missing values on building a model
+3. **Build** a simple model to explain 30 day hospital readmissions
+4. **Evaluate** the model in terms of our own priorities and values
+
+Note that the goal today is not to turn you into a statistical programmer. It's to introduce you to the basic concepts behind predicitve modeling.
+
+
+
+## Tour of R/RStudio
+
+[Panels]
+[Environment]
+[Files]
+
+
+
+## Remember, you can look at and perform EDA on the data here
+http://bit.ly/hip_dw
+
+
+
+## Basic workflow for predictive modeling
+
+This is an extremely simplified version of predictive modeling, but hopefully it will give you a sense for each step.
+
+
+1. Clean data
+2. Separate data into training/test sets
+3. Train model using training set
+4. Predict probabilities using test set
+5. Pick cutoff and assess model performance
+
+
+
+## First Things First
+
+The first thing to do is to load the data into your workspace. Click the `play` button on the code chunk below. 
+
+First, let's load in some packages: `here`,`broom`, `tidyr`, `dplyr`, `janitor`, `visdat`, and `caret`.
+Then we're going to load our data using the `read_rds` function. We use the `<-` to *assign* our data into the `hosp_readmit_data` object. 
+
+```{r setup}
+library(here)
+library(broom)
+library(tidyr)
+library(dplyr)
+library(janitor)
+library(visdat)
+library(groupdata2)
+library(caret)
+
+hosp_readmit_data <- readRDS(here('data', 'dataset.rds'))
+```
+
+
+
+## Show and visualize the data
+
+Let's look at the first few rows of the data with the `head()` command.
+
+```{r}
+head(hosp_readmit_data)
+```
+
+
+If you want to see the full table, you can click on the variable you assigned it to in the `Environment` panel or use the `View()` command:
+
+```{r}
+View(hosp_readmit_data)
+```
+
+
+We're going to use `visdat` from the `visdat` library to summarize our data  What do you notice about our dataset?
+```{r}
+vis_dat(hosp_readmit_data)
+```
+
+
+
+## What are we going to do about `NA`s?
+
+Ugh. There are NAs (missing values) in our data! We're going to use the `drop_na` function from the `tidyr` library to remove all rows that are not complete. 
+
+```{r}
+hosp_readmit_data_filtered <- hosp_readmit_data %>%
+    drop_na()
+
+vis_dat(hosp_readmit_data_filtered)
+```
+
+But how many patients did we lose?
+
+```{r}
+nrow(hosp_readmit_data)
+```
+
+
+```{r}
+nrow(hosp_readmit_data_filtered)
+```
+
+
+
+## Select your covariates
+
+Ok, now we're going to build a simple predictive model with our covariates. We're going to use the `select` function in the `dplyr` package to pick our variables from the larger dataset.
+
+This will seem weird at first, but the `%>%` is what's called a `pipe` and lets us flow our data from one function to another. When I read my code out loud, I usually read it as "then".
+
+For example, I would read the following statement as:
+
+I took `hosp_readmit_data_filtered` and THEN
+I only `select`ed the `patient_id`, `readmit30`, `age`, and `length_of_stay` columns.
+
+Think about it: which variables are we selecting? What is the outcome we're trying to predict?
+
+```{r}
+hosp_readmit_data_model <- hosp_readmit_data_filtered %>%
+    select(patient_id, readmit30, age, length_of_stay)
+
+head(hosp_readmit_data_model)
+```
+
+We're going to use `visdat` from the `visdat` library to summarize our data again. Does everything look good?
+```{r}
+vis_dat(hosp_readmit_data_model)
+```
+
+
+
+## Separating out our data
+
+Ok, now we have to separate our data into two sets: the *training* set and the *test* set. 
+
+1. Training set: a set of data with which we build (or train) our model with.
+2. Test set: a set of data with which we test the predictive power of our model.
+
+
+How do we relate the test/train set to internal validity? Why is it important to hold out some data for testing?
+
+
+Below, we're going to use `partition` from the `groupdata2` library.
+
+- `partition` creates two (or more, if you'd like) partitions from a single dataset
+
+- You can set the size of each partition by setting `p` (percent) equal to a number between 0 and 1.
+  This indicates the size of the first, second, third, etc. partition.
+  You do not need to set a size for the last partition, since it is inferred.
+  
+- The `id_col` setting allows you to specify a subject ID number.
+  This prevents you from having subjects in both your train and test datasets.
+  Why might this be important?
+  
+- The `cat_col` setting allows you to stratify cases similarly between partitions.
+  Why should this be done?
+
+```{r}
+set.seed(123) ## setting a seed produces the same results each time. this is great for reproducibility!
+
+partitioned_data <- partition(hosp_readmit_data_model,
+                              p = 0.85,
+                              id_col = 'patient_id',
+                              cat_col = 'readmit30')
+
+train_data <- partitioned_data[[1]]
+
+test_data <- partitioned_data[[2]]
+```
+
+
+Show the number of rows in our training data:
+
+```{r}
+nrow(train_data)
+```
+
+Show the number of rows in our test data:
+
+```{r}
+nrow(test_data)
+```
+
+
+
+## A Basic Model
+
+Here we're going to build a basic model with `readmit30` as our outcome (what we want to predict), and `train_data` as our data. 
+
+Take a look at how we build the model below. The first thing we need to specify is our *forumla*. 
+
+One of the most confusing things about R is the formula interface
+The thing to remember is that formulas have a certain form.
+If `Y` is our dependent variable and `X1`, `X2` are independent variables, then the formula to predict `Y` has the format `Y ~ X1 + X2`. 
+
+Usually these variables come from a data.frame, which is supplied by the `data` argument to the function.
+Note that we don't need quotes to refer to the variables in the `data.frame`.
+
+```{r}
+basic_model <- glm(formula = readmit30 ~ age + length_of_stay, ## <-- put your formula here
+                   family = "binomial", ## <-- just telling R we want to do logistic regression
+                   data = train_data ## <-- now we're telling R what data we want to use to create this model
+                   )
+```
+
+## Predictive model
+
+The important thing to understand with logistic regression is that it actually calculates a probability, which is the likelihood that you are likely to be readmitted within the next 30 days.
+A probability of 0.9 means that you are more likely to be readmitted, and a probability of 0.1 means that you are less likely to be readmitted.
+
+Let's plug in a couple of patients into our model. 
+
+1. `patient1` is going to be older `65`, but have a shorter `length_of_stay` (`5` days). Is this patient more likely to be readmitted or not?
+
+2. `patient2` is going to be younger `25`, and has a longer `length_of_stay` (`23` days). Is this patient more likely to be readmitted or not?
+
+3. `patient3` is a middle aged (`42`) patient,  and has shorter `length_of_stay` (`10` days)? Is this patient more likely to be readmitted or not?
+
+4. `patient41` is an older (`60`) patient, a long `length_of_stay` (`41` days). What do you think?
+
+Let's plug in these four patients into our model. First we specify our data. We have to specify each variable separately and then glue them together as a `data.frame`.
+
+```{r}
+patient_id <- c("patient_1", "patient_2", "patient_3", "patient_4")
+age <- c(75, 25, 42, 60)
+length_of_stay <- c(10, 20, 17, 36)
+
+patient_table <- data.frame(patient_id, age, length_of_stay)
+patient_table
+```
+
+We can pass `patient_table` into our model with the `augment` function and it will evaluate our patients.
+When we look at this table, we can see that the `.fitted` column contains our predicted probabilities.
+
+```{r}
+patient_table_aug <- augment(basic_model, newdata = patient_table, type.predict = "response") %>%
+    rename(fitted = .fitted)
+
+patient_table_aug
+```
+
+Let's plot the predicted probability for each patient.
+
+```{r}
+patient_table_aug %>%
+    ggplot() +
+    aes(x = patient_id, y = fitted, fill = patient_id) +
+    geom_bar(stat = "identity") +
+    ggtitle("Predicted probability for each patient") +
+    ylim(0, 1)
+```
+
+So what do we find interesting here?
+
+- Patient 2 is 50 years younger than Patient 1, but has the same probability of readmission because they stayed in the hospital twice as long.
+- Patient 3 is only about 15 years older than Patient 2 (and 30+ years younger than Patient 1), but has nearly the same risk because their hospital stays were similar.
+- Patient 4, well, we'll probably see Patient 4 again soon.
+
+
+It sort of seems like `age` doesn't matter, but we can test this using `tidy` on `basic_model`.
+Predictor variables aren't all equally important in a model.
+They're actually weighted in terms of importance, and we can see that by looking at the `estimate`.
+We can also see whether a predictors importance is statistically significant by looking at the `p.value`.
+For an alpha cutoff of 0.05, `length_of_stay` is a highly significant predictor, but `age` isn't.
+
+```{r}
+tidy(basic_model)
+```
+
+There are many other types of data we are not capturing that may explain the remainder of the probability.
+One such data point might be history of previous cardiovascular events.
+Another might be whether the person is diabetic.
+
+
+
+
+## Evaluating using our test set
+
+What if we plug in our test set into the model? How are the predicted probabilities distributed?
+
+```{r}
+predictions <- augment(basic_model, newdata = test_data, type.predict = "response") %>%
+    rename(fitted = .fitted)
+
+predictions
+```
+
+Plot the histogram of probabilities:
+
+```{r}
+predictions %>%
+    ggplot() +
+    aes(x = fitted) +
+    geom_histogram(binwidth = 0.01)
+```
+
+We see that the majority of our test patients have a lower predicted probability.
+Naively, let's choose that if our patient has a predicted probability > 0.5, that they are a readmission risk and if they are less than or equal to 0.5, they are not a readmission risk.
+Let's recode a new variable, `predict_readmit30`, with this variable
+
+```{r}
+cutoff <- 0.5
+
+predictions2 <- predictions %>%
+    mutate(predict_readmit30 = if_else(fitted > cutoff, 1, 0),
+           across(predict_readmit30, as.factor))
+
+predictions2
+```
+
+Now we have a set of predictions and we can compare them to the true value `readmit30` in our dataset. 
+
+```{r}
+#show metrics on our predictions
+caret::confusionMatrix(predictions2$predict_readmit30, predictions$readmit30,  positive="1")
+```
+
+Try adjusting the `cutoff` above and see how the different cells of the table change.
+
+
+
+
+## Accuracy versus balanced accuracy
+
+Try adjusting `cutoff` below and look at what happens to Accuracy versus Balanced accuracy.
+
+```{r}
+cutoff <- 0.3
+
+#recode our fitted into a prediction using a cutoff
+predictions2 <- predictions %>% 
+  mutate(predict_readmit30 = case_when(.fitted > cutoff ~ 1, 
+                                       .fitted <= cutoff ~ 0))
+
+#make our predictions categorical by transforming them into factor
+predictions2 <- predictions2 %>% 
+  mutate(readmit30 = factor(readmit30),
+         predict_readmit30 = factor(predict_readmit30))
+
+#show metrics on our predictions
+caret::confusionMatrix(predictions2$predict_readmit30, predictions$readmit30,  positive="1")
+```
+
+
+```{r}
+tidy(basic_model)
+```
+
+# Review: Basic workflow for predictive modeling
+
+
+1. Clean Data using select/drop_na
+2. Separate data into training/test sets
+3. Train model using training set
+4. Predict probabilities using test set
+5. Pick cutoff and assess model performance
+
+
+
+
+# Your Model:
+
+You have selected a set of covariates as predictors of your model. Input them in the code below.
+
+```{r}
+## remember to subset the proper variables!
+hosp_readmit_data_filtered2 <- hosp_readmit_data %>% 
+    select(patient_id, readmit30, length_of_stay## fill in with your variables!
+           ) %>%
+    drop_na() ## use drop_na() for now
+
+
+## now we'll separate the data into train and test datasets
+## remember to set a seed for reproducibility!
+set.seed(123)
+
+partitioned_data2 <- partition(hosp_readmit_data_filtered2,
+                              p = 0.85,
+                              id_col = 'patient_id',
+                              cat_col = 'readmit30')
+
+train_data2 <- partitioned_data2[[1]]
+
+test_data2 <- partitioned_data2[[2]]
+```
+
+
+
+# Run Model
+
+Put in your model in the form of (readmit30 ~ age + length_of_stay)
+
+```{r}
+basic_model2 <- glm(readmit30 ~  , ## <-- fill your covariates here
+                    family = "binomial", 
+                    data = train_data2 ## <-- remember to specify which dataset you'll be using!
+                    )
+```
+
+# Predict on Training Set
+
+```{r}
+#evaluate basic_model2 here
+predictions <- augment(basic_model2, newdata = test_data2, type.predict = "response") %>%
+    rename(fitted = .fitted)
+
+predictions %>%
+    ggplot() +
+    aes(x = fitted) +
+    geom_histogram()
+```
+
+## Decide on a Cutoff and predict
+
+```{r}
+cutoff <- 0.5
+
+predictions2 <- predictions %>% 
+  mutate(predict_readmit30 = case_when(fitted > cutoff ~ 1,
+                                       fitted <= cutoff ~ 0))
+
+caret::confusionMatrix( predictions2$predict_readmit30, predictions$readmit30,  positive="1")
+```
+
+
+## How did you do?
+
+Post in chat your model, cutoff, and sensitivity/specificity
+
+How do you intepret the model for your patient population? Is the data adequate to predict patients who will be readmitted?
+
+
+
+# Summary
+
+We learned a lot today in this notebook! Specifically,
+
+1. How to select our variables using `select()`
+2. How to only use complete cases using `drop_na()`
+3. How to separate our data into test/train sets
+4. How to build our model using `glm()`
+5. Testing the predictive power of our model using patients
+5. Ways to evaluate the predictive power of our model
+
