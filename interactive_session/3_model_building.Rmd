@@ -8,11 +8,14 @@ editor_options:
   chunk_output_type: inline
 ---
 
-In this R notebook, we're going to learn the basics of predictive modeling. 
+In this R notebook, we're going to learn the basics of predictive modeling.
 
-## Before we get started
 
-Save this under a different file name using File >> Save as. 
+
+## Tour of R/RStudio
+
+[Environment]
+[Files]
 
 
 
@@ -23,15 +26,8 @@ Save this under a different file name using File >> Save as.
 3. **Build** a simple model to explain 30 day hospital readmissions
 4. **Evaluate** the model in terms of our own priorities and values
 
-Note that the goal today is not to turn you into a statistical programmer. It's to introduce you to the basic concepts behind predicitve modeling.
-
-
-
-## Tour of R/RStudio
-
-[Panels]
-[Environment]
-[Files]
+Note that the goal today is not to turn you into a statistical programmer.
+It's to introduce you to the basic concepts behind predictive modeling.
 
 
 
@@ -57,7 +53,7 @@ This is an extremely simplified version of predictive modeling, but hopefully it
 
 The first thing to do is to load the data into your workspace. Click the `play` button on the code chunk below. 
 
-First, let's load in some packages: `here`,`broom`, `tidyr`, `dplyr`, `janitor`, `visdat`, and `caret`.
+First, let's load in some packages: `here`,`broom`, `tidyr`, `dplyr`, `janitor`, `visdat`, `groupdata2`, and `caret`.
 Then we're going to load our data using the `read_rds` function. We use the `<-` to *assign* our data into the `hosp_readmit_data` object. 
 
 ```{r setup}
@@ -112,25 +108,34 @@ vis_dat(hosp_readmit_data_filtered)
 But how many patients did we lose?
 
 ```{r}
+## number of rows in original data
 nrow(hosp_readmit_data)
 ```
 
 
 ```{r}
+## number of rows in filtered data
 nrow(hosp_readmit_data_filtered)
 ```
 
 
+```{r}
+## number of patients lost
+nrow(hosp_readmit_data) - nrow(hosp_readmit_data_filtered)
+```
+
 
 ## Select your covariates
 
-Ok, now we're going to build a simple predictive model with our covariates. We're going to use the `select` function in the `dplyr` package to pick our variables from the larger dataset.
+Okay, now we're going to build a simple predictive model with our covariates.
+We're going to use the `select` function in the `dplyr` package to pick our variables from the larger dataset.
 
-This will seem weird at first, but the `%>%` is what's called a `pipe` and lets us flow our data from one function to another. When I read my code out loud, I usually read it as "then".
+This will seem weird at first, but the `%>%` is what's called a `pipe` and lets us flow our data from one function to another.
+When I read my code out loud, I usually read it as "and then".
 
 For example, I would read the following statement as:
 
-I took `hosp_readmit_data_filtered` and THEN
+I took `hosp_readmit_data_filtered` AND THEN
 I only `select`ed the `patient_id`, `readmit30`, `age`, and `length_of_stay` columns.
 
 Think about it: which variables are we selecting? What is the outcome we're trying to predict?
@@ -142,7 +147,10 @@ hosp_readmit_data_model <- hosp_readmit_data_filtered %>%
 head(hosp_readmit_data_model)
 ```
 
-We're going to use `visdat` from the `visdat` library to summarize our data again. Does everything look good?
+
+We're going to use `visdat` from the `visdat` library to summarize our data again.
+Does everything look good?
+
 ```{r}
 vis_dat(hosp_readmit_data_model)
 ```
@@ -151,22 +159,23 @@ vis_dat(hosp_readmit_data_model)
 
 ## Separating out our data
 
-Ok, now we have to separate our data into two sets: the *training* set and the *test* set. 
+Okay, now we have to separate our data into two sets: the *training* set and the *test* set. 
 
 1. Training set: a set of data with which we build (or train) our model with.
 2. Test set: a set of data with which we test the predictive power of our model.
 
 
-How do we relate the test/train set to internal validity? Why is it important to hold out some data for testing?
+How do we relate the test/train set to internal validity?
+Why is it important to hold out some data for testing?
 
 
 Below, we're going to use `partition` from the `groupdata2` library.
 
-- `partition` creates two (or more, if you'd like) partitions from a single dataset
+- `partition` creates two (or more) partitions from a single dataset
 
 - You can set the size of each partition by setting `p` (percent) equal to a number between 0 and 1.
   This indicates the size of the first, second, third, etc. partition.
-  You do not need to set a size for the last partition, since it is inferred.
+  You do not need to set a size for the last partition, as it is inferred.
   
 - The `id_col` setting allows you to specify a subject ID number.
   This prevents you from having subjects in both your train and test datasets.
@@ -176,10 +185,11 @@ Below, we're going to use `partition` from the `groupdata2` library.
   Why should this be done?
 
 ```{r}
-set.seed(123) ## setting a seed produces the same results each time. this is great for reproducibility!
+## setting a seed produces the same train/test splits each time we run this on the same dataset
+set.seed(123)
 
 partitioned_data <- partition(hosp_readmit_data_model,
-                              p = 0.85,
+                              p = 0.75,
                               id_col = 'patient_id',
                               cat_col = 'readmit30')
 
@@ -207,9 +217,10 @@ nrow(test_data)
 
 Here we're going to build a basic model with `readmit30` as our outcome (what we want to predict), and `train_data` as our data. 
 
-Take a look at how we build the model below. The first thing we need to specify is our *forumla*. 
+Take a look at how we build the model below.
+The first thing we need to specify is our *forumla*. 
 
-One of the most confusing things about R is the formula interface
+One of the most confusing things about R is the formula interface.
 The thing to remember is that formulas have a certain form.
 If `Y` is our dependent variable and `X1`, `X2` are independent variables, then the formula to predict `Y` has the format `Y ~ X1 + X2`. 
 
@@ -230,20 +241,24 @@ A probability of 0.9 means that you are more likely to be readmitted, and a prob
 
 Let's plug in a couple of patients into our model. 
 
-1. `patient1` is going to be older `65`, but have a shorter `length_of_stay` (`5` days). Is this patient more likely to be readmitted or not?
+1. `patient1` is going to be older `65`, but have a shorter `length_of_stay` (`5` days).
+   Is this patient more likely to be readmitted or not?
 
-2. `patient2` is going to be younger `25`, and has a longer `length_of_stay` (`23` days). Is this patient more likely to be readmitted or not?
+2. `patient2` is going to be younger `25`, but have a longer `length_of_stay` (`23` days).
+   Is this patient more likely to be readmitted or not?
 
-3. `patient3` is a middle aged (`42`) patient,  and has shorter `length_of_stay` (`10` days)? Is this patient more likely to be readmitted or not?
+3. `patient3` is middle aged (`42`), and has a longer `length_of_stay` (`10` days)?
+   Is this patient more likely to be readmitted or not?
 
-4. `patient41` is an older (`60`) patient, a long `length_of_stay` (`41` days). What do you think?
+4. `patient4` is older (`60`), and has a very long `length_of_stay` (`41  ` days).
+   What do you think?
 
 Let's plug in these four patients into our model. First we specify our data. We have to specify each variable separately and then glue them together as a `data.frame`.
 
 ```{r}
 patient_id <- c("patient_1", "patient_2", "patient_3", "patient_4")
-age <- c(75, 25, 42, 60)
-length_of_stay <- c(10, 20, 17, 36)
+age <- c(65, 25, 42, 60)
+length_of_stay <- c(5, 23, 10, 41)
 
 patient_table <- data.frame(patient_id, age, length_of_stay)
 patient_table
@@ -253,8 +268,7 @@ We can pass `patient_table` into our model with the `augment` function and it wi
 When we look at this table, we can see that the `.fitted` column contains our predicted probabilities.
 
 ```{r}
-patient_table_aug <- augment(basic_model, newdata = patient_table, type.predict = "response") %>%
-    rename(fitted = .fitted)
+patient_table_aug <- augment(basic_model, newdata = patient_table, type.predict = "response")
 
 patient_table_aug
 ```
@@ -264,7 +278,7 @@ Let's plot the predicted probability for each patient.
 ```{r}
 patient_table_aug %>%
     ggplot() +
-    aes(x = patient_id, y = fitted, fill = patient_id) +
+    aes(x = patient_id, y = .fitted, fill = patient_id) +
     geom_bar(stat = "identity") +
     ggtitle("Predicted probability for each patient") +
     ylim(0, 1)
@@ -272,14 +286,11 @@ patient_table_aug %>%
 
 So what do we find interesting here?
 
-- Patient 2 is 50 years younger than Patient 1, but has the same probability of readmission because they stayed in the hospital twice as long.
-- Patient 3 is only about 15 years older than Patient 2 (and 30+ years younger than Patient 1), but has nearly the same risk because their hospital stays were similar.
-- Patient 4, well, we'll probably see Patient 4 again soon.
 
 
-It sort of seems like `age` doesn't matter, but we can test this using `tidy` on `basic_model`.
+
 Predictor variables aren't all equally important in a model.
-They're actually weighted in terms of importance, and we can see that by looking at the `estimate`.
+They're actually weighted in terms of importance, and we can see that by looking at the `estimate` using `tidy` on `basic_model`.
 We can also see whether a predictors importance is statistically significant by looking at the `p.value`.
 For an alpha cutoff of 0.05, `length_of_stay` is a highly significant predictor, but `age` isn't.
 
@@ -299,8 +310,7 @@ Another might be whether the person is diabetic.
 What if we plug in our test set into the model? How are the predicted probabilities distributed?
 
 ```{r}
-predictions <- augment(basic_model, newdata = test_data, type.predict = "response") %>%
-    rename(fitted = .fitted)
+predictions <- augment(basic_model, newdata = test_data, type.predict = "response")
 
 predictions
 ```
@@ -310,7 +320,7 @@ Plot the histogram of probabilities:
 ```{r}
 predictions %>%
     ggplot() +
-    aes(x = fitted) +
+    aes(x = .fitted, fill = readmit30) +
     geom_histogram(binwidth = 0.01)
 ```
 
@@ -322,7 +332,7 @@ Let's recode a new variable, `predict_readmit30`, with this variable
 cutoff <- 0.5
 
 predictions2 <- predictions %>%
-    mutate(predict_readmit30 = if_else(fitted > cutoff, 1, 0),
+    mutate(predict_readmit30 = if_else(.fitted > cutoff, 1, 0),
            across(predict_readmit30, as.factor))
 
 predictions2
@@ -335,9 +345,6 @@ Now we have a set of predictions and we can compare them to the true value `read
 caret::confusionMatrix(predictions2$predict_readmit30, predictions$readmit30,  positive="1")
 ```
 
-Try adjusting the `cutoff` above and see how the different cells of the table change.
-
-
 
 
 ## Accuracy versus balanced accuracy
@@ -349,13 +356,8 @@ cutoff <- 0.3
 
 #recode our fitted into a prediction using a cutoff
 predictions2 <- predictions %>% 
-  mutate(predict_readmit30 = case_when(.fitted > cutoff ~ 1, 
-                                       .fitted <= cutoff ~ 0))
-
-#make our predictions categorical by transforming them into factor
-predictions2 <- predictions2 %>% 
-  mutate(readmit30 = factor(readmit30),
-         predict_readmit30 = factor(predict_readmit30))
+  mutate(predict_readmit30 = if_else(.fitted > cutoff, 1, 0),
+           across(predict_readmit30, as.factor))
 
 #show metrics on our predictions
 caret::confusionMatrix(predictions2$predict_readmit30, predictions$readmit30,  positive="1")
@@ -385,7 +387,7 @@ You have selected a set of covariates as predictors of your model. Input them in
 ```{r}
 ## remember to subset the proper variables!
 hosp_readmit_data_filtered2 <- hosp_readmit_data %>% 
-    select(patient_id, readmit30, length_of_stay## fill in with your variables!
+    select(patient_id, readmit30, ## fill in with your variables!
            ) %>%
     drop_na() ## use drop_na() for now
 
@@ -394,10 +396,10 @@ hosp_readmit_data_filtered2 <- hosp_readmit_data %>%
 ## remember to set a seed for reproducibility!
 set.seed(123)
 
-partitioned_data2 <- partition(hosp_readmit_data_filtered2,
-                              p = 0.85,
-                              id_col = 'patient_id',
-                              cat_col = 'readmit30')
+partitioned_data2 <- partition(hosp_readmit_data_filtered2, ## the dataset we want to partition
+                               p = 0.75, ## the size of the first partition (second is inferred)
+                               id_col = ,## what's the ID column going to be?
+                               cat_col = )## what is our category column (i.e., outcome of interest)?)
 
 train_data2 <- partitioned_data2[[1]]
 
@@ -421,12 +423,11 @@ basic_model2 <- glm(readmit30 ~  , ## <-- fill your covariates here
 
 ```{r}
 #evaluate basic_model2 here
-predictions <- augment(basic_model2, newdata = test_data2, type.predict = "response") %>%
-    rename(fitted = .fitted)
+predictions <- augment(basic_model2, newdata = test_data2, type.predict = "response")
 
 predictions %>%
     ggplot() +
-    aes(x = fitted) +
+    aes(x = .fitted, fill = readmit30) +
     geom_histogram()
 ```
 
@@ -436,8 +437,8 @@ predictions %>%
 cutoff <- 0.5
 
 predictions2 <- predictions %>% 
-  mutate(predict_readmit30 = case_when(fitted > cutoff ~ 1,
-                                       fitted <= cutoff ~ 0))
+  mutate(predict_readmit30 = if_else(.fitted > cutoff, 1, 0),
+         across(predict_readmit30, as.factor))
 
 caret::confusionMatrix( predictions2$predict_readmit30, predictions$readmit30,  positive="1")
 ```
@@ -447,7 +448,7 @@ caret::confusionMatrix( predictions2$predict_readmit30, predictions$readmit30,  
 
 Post in chat your model, cutoff, and sensitivity/specificity
 
-How do you intepret the model for your patient population? Is the data adequate to predict patients who will be readmitted?
+How do you interpret the model for your patient population? Is the data adequate to predict patients who will be readmitted?
 
 
 
@@ -461,4 +462,3 @@ We learned a lot today in this notebook! Specifically,
 4. How to build our model using `glm()`
 5. Testing the predictive power of our model using patients
 5. Ways to evaluate the predictive power of our model
-
